@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en" class=""><head><script>window.livecodes = window.livecodes || {};</script><title>School students </title><meta name="title" content="School students "><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="stylesheet" href="./style.css"><script src="https://cdn.jsdelivr.net/npm/es-module-shims@1.10.0/dist/es-module-shims.js" async=""></script><script type="importmap">{
+  "imports": {}
+}</script></head><body>
+
+
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Portal - Navrose Smart School</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        :root {
+            --bg-primary: #f7f8fa;
+            --bg-secondary: #ffffff;
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --accent-primary: #16a34a;
+            --accent-hover: #15803d;
+            --border-color: #e5e7eb;
+        }
+        html, body { height: 100%; overflow: hidden; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: var(--bg-primary); }
+        .card { 
+            background-color: var(--bg-secondary); border-radius: 1rem; padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.05);
+        }
+        .form-input, .form-textarea {
+            width: 100%; padding: 0.75rem; border: 1px solid var(--border-color);
+            border-radius: 0.5rem; font-size: 1rem; background-color: var(--bg-secondary);
+        }
+        
+        .sidebar { transition: width 0.3s ease; }
+        .sidebar.collapsed { width: 5rem; }
+        .sidebar.collapsed .sidebar-header-text, .sidebar.collapsed .nav-text { display: none; }
+        .sidebar.collapsed .nav-button { justify-content: center; }
+
+        #bottom-nav { border-top: 1px solid var(--border-color); }
+        .bottom-nav-btn { color: var(--text-secondary); }
+        .bottom-nav-btn.active { color: var(--accent-primary); }
+        .nav-button.active { background-color: #dcfce7; color: var(--accent-primary); }
+        
+        .modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.5); display: none;
+            justify-content: center; align-items: center; z-index: 1000;
+        }
+        .modal.active { display: flex; }
+        .modal-content { background-color: white; padding: 2rem; border-radius: 1rem; width: 90%; max-width: 500px; }
+
+        #chat-modal .modal-content {
+            height: 70vh; max-width: 450px; padding: 0; display: flex; flex-direction: column;
+        }
+        #chat-header { padding: 1rem 1.5rem; border-bottom: 1px solid #e5e7eb; font-weight: 700; }
+        #chat-messages { flex-grow: 1; padding: 1.5rem; overflow-y: auto; display: flex; flex-direction: column; }
+        .chat-bubble { max-width: 80%; padding: 0.5rem 1rem; border-radius: 1rem; margin-bottom: 0.5rem; }
+        .chat-bubble.sent { background-color: var(--accent-primary); color: white; align-self: flex-end; border-bottom-right-radius: 0.25rem; }
+        .chat-bubble.received { background-color: #e5e7eb; color: var(--text-primary); align-self: flex-start; border-bottom-left-radius: 0.25rem; }
+        #chat-form { padding: 1rem; border-top: 1px solid #e5e7eb; display: flex; gap: 0.5rem; }
+
+        @media (max-width: 767px) {
+            .sidebar { display: none; }
+            #bottom-nav { display: flex; }
+            main { padding-bottom: 5rem; } 
+        }
+        @media (min-width: 768px) {
+            #menu-toggle { display: block; }
+            #bottom-nav { display: none; }
+        }
+    </style>
+
+
+
+    <div id="login-overlay" class="fixed inset-0 bg-gray-100 z-50 flex items-center justify-center">
+        <div class="w-full max-w-sm p-8 space-y-6 bg-white rounded-2xl shadow-lg">
+            <div class="text-center">
+                <h1 class="text-2xl font-bold">Student Portal Login</h1>
+                <p class="text-gray-500">Welcome back!</p>
+            </div>
+            <form id="student-login-form" class="space-y-4">
+                <div>
+                    <label for="student-admission-no" class="block text-sm font-medium text-gray-700">Admission No.</label>
+                    <input type="text" id="student-admission-no" class="form-input mt-1" required="">
+                </div>
+                <div>
+                    <label for="student-mobile" class="block text-sm font-medium text-gray-700">Registered Mobile No.</label>
+                    <input type="tel" id="student-mobile" class="form-input mt-1" required="">
+                </div>
+                <div class="pt-2">
+                     <button type="submit" class="w-full py-3 px-4 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg">Login</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="app-container" class="flex h-screen hidden">
+        <nav class="sidebar w-64 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
+            <div class="p-4 border-b flex items-center gap-3">
+                <div class="bg-green-600 p-2 rounded-lg text-white">
+                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path d="M10.5 4.5a3 3 0 0 0-3 3v.75a.75.75 0 0 1-1.5 0v-.75a4.5 4.5 0 0 1 4.5-4.5h3a4.5 4.5 0 0 1 4.5 4.5v.75a.75.75 0 0 1-1.5 0v-.75a3 3 0 0 0-3-3h-3Z"></path><path fill-rule="evenodd" d="M2.25 12c0-3.573 2.642-6.535 6.07-7.122A.75.75 0 0 1 9 5.628v12.744a.75.75 0 0 1-1.192.594C4.354 18.2 2.25 15.34 2.25 12ZM15 5.628a.75.75 0 0 0-1.192-.594C17.646 5.7 21.75 8.66 21.75 12c0 3.573-2.642 6.535-6.07 7.122A.75.75 0 0 0 15 18.372V5.628Z" clip-rule="evenodd"></path></svg>
+                </div>
+                <h1 class="text-xl font-bold sidebar-header-text">Student Portal</h1>
+            </div>
+            <div class="flex-grow p-2 space-y-1">
+                <button data-tab="dashboard" class="nav-button w-full flex items-center p-3 rounded-lg font-semibold text-gray-700"> <svg class="w-6 h-6 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M10.5 4.5a3 3 0 0 0-3 3v.75a.75.75 0 0 1-1.5 0v-.75a4.5 4.5 0 0 1 4.5-4.5h3a4.5 4.5 0 0 1 4.5 4.5v.75a.75.75 0 0 1-1.5 0v-.75a3 3 0 0 0-3-3h-3Z"></path><path fill-rule="evenodd" d="M2.25 12c0-3.573 2.642-6.535 6.07-7.122A.75.75 0 0 1 9 5.628v12.744a.75.75 0 0 1-1.192.594C4.354 18.2 2.25 15.34 2.25 12ZM15 5.628a.75.75 0 0 0-1.192-.594C17.646 5.7 21.75 8.66 21.75 12c0 3.573-2.642 6.535-6.07 7.122A.75.75 0 0 0 15 18.372V5.628Z" clip-rule="evenodd"></path></svg> <span class="nav-text">Dashboard</span></button>
+                <button data-tab="id-card" class="nav-button w-full flex items-center p-3 rounded-lg font-semibold text-gray-700"> <svg class="w-6 h-6 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 7.5a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5Z"></path><path fill-rule="evenodd" d="M1.5 4.875C1.5 3.839 2.34 3 3.375 3h17.25c1.035 0 1.875.84 1.875 1.875v14.25c0 1.035-.84 1.875-1.875 1.875H3.375A1.875 1.875 0 0 1 1.5 19.125V4.875ZM3 16.5c0 .207.168.375.375.375h17.25a.375.375 0 0 0 .375-.375V9.75A.75.75 0 0 0 20.25 9h-1.355a3 3 0 0 1-2.91-2.583A6 6 0 0 0 12 3.75c-1.61 0-3.094.633-4.186 1.667A3.001 3.001 0 0 1 4.905 9H3.75a.75.75 0 0 0-.75.75v6.75Z" clip-rule="evenodd"></path></svg> <span class="nav-text">My ID Card</span></button>
+                <button data-tab="homework" class="nav-button w-full flex items-center p-3 rounded-lg font-semibold text-gray-700"> <svg class="w-6 h-6 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M11.25 4.533A9.708 9.708 0 0 0 6 3.75a9.708 9.708 0 0 0-5.25.783V18a9.708 9.708 0 0 0 5.25.783a9.708 9.708 0 0 0 5.25-.783V4.533Z"></path><path d="M12.75 3.75a9.708 9.708 0 0 1 5.25.783V18a9.708 9.708 0 0 1-5.25.783a9.708 9.708 0 0 1-5.25-.783V4.533c.359-.092.73-.162 1.114-.211A9.73 9.73 0 0 1 8.25 3.75a9.73 9.73 0 0 1 4.5 0Z"></path></svg> <span class="nav-text">Homework</span></button>
+                <button data-tab="liveclass" class="nav-button w-full flex items-center p-3 rounded-lg font-semibold text-gray-700"> <svg class="w-6 h-6 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M4.5 4.5a3 3 0 0 0-3 3v9a3 3 0 0 0 3 3h15a3 3 0 0 0 3-3v-9a3 3 0 0 0-3-3h-15Zm-1.5 3a1.5 1.5 0 0 1 1.5-1.5h15a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5-1.5h-15a1.5 1.5 0 0 1-1.5-1.5v-9Z"></path><path d="M10.03 10.03a.75.75 0 0 1 0 1.06l-2.25 2.25a.75.75 0 0 1-1.06 0l-.75-.75a.75.75 0 1 1 1.06-1.06l.22.22 1.72-1.72a.75.75 0 0 1 1.06 0Zm6-2.25a.75.75 0 0 0-.75.75v4.5a.75.75 0 0 0 1.5 0v-4.5a.75.75 0 0 0-.75-.75Z"></path></svg> <span class="nav-text">Live Class</span></button>
+                <button data-tab="transport" class="nav-button w-full flex items-center p-3 rounded-lg font-semibold text-gray-700"> <svg class="w-6 h-6 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M10.5 18.75a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5h-3Z"></path><path fill-rule="evenodd" d="M8.625.75A3.375 3.375 0 0 0 5.25 4.125v15.75a3.375 3.375 0 0 0 3.375 3.375h6.75a3.375 3.375 0 0 0 3.375-3.375V4.125A3.375 3.375 0 0 0 15.375.75h-6.75ZM7.5 4.125a1.125 1.125 0 0 1 1.125-1.125h6.75a1.125 1.125 0 0 1 1.125 1.125v15.75a1.125 1.125 0 0 1-1.125 1.125h-6.75a1.125 1.125 0 0 1-1.125-1.125V4.125Z" clip-rule="evenodd"></path></svg> <span class="nav-text">Transport</span></button>
+                <button data-tab="results" class="nav-button w-full flex items-center p-3 rounded-lg font-semibold text-gray-700"> <svg class="w-6 h-6 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M10.5 3.75a.75.75 0 0 1 .75.75v14.03l3.2-3.261a.75.75 0 1 1 1.07 1.05l-4.5 4.604a.75.75 0 0 1-1.07 0l-4.5-4.604a.75.75 0 1 1 1.07-1.05l3.2 3.261V4.5a.75.75 0 0 1 .75-.75Z" clip-rule="evenodd"></path></svg> <span class="nav-text">Results</span></button>
+                <button data-tab="leave-application" class="nav-button w-full flex items-center p-3 rounded-lg font-semibold text-gray-700"><svg class="w-6 h-6 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M12.96 6.22a.75.75 0 0 1 1.06 0l4.5 4.5a.75.75 0 0 1 0 1.06l-4.5 4.5a.75.75 0 1 1-1.06-1.06L16.69 12l-3.73-3.72a.75.75 0 0 1 0-1.06ZM6.96 6.22a.75.75 0 0 1 1.06 0l4.5 4.5a.75.75 0 0 1 0 1.06l-4.5 4.5a.75.75 0 1 1-1.06-1.06L10.69 12 6.96 8.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"></path></svg><span class="nav-text">Leave Application</span></button>
+                <button data-tab="my-profile" class="nav-button w-full flex items-center p-3 rounded-lg font-semibold text-gray-700"> <svg class="w-6 h-6 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 7.5a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5Z"></path><path fill-rule="evenodd" d="M1.5 4.875C1.5 3.839 2.34 3 3.375 3h17.25c1.035 0 1.875.84 1.875 1.875v14.25c0 1.035-.84 1.875-1.875 1.875H3.375A1.875 1.875 0 0 1 1.5 19.125V4.875ZM3 16.5c0 .207.168.375.375.375h17.25a.375.375 0 0 0 .375-.375V9.75A.75.75 0 0 0 20.25 9h-1.355a3 3 0 0 1-2.91-2.583A6 6 0 0 0 12 3.75c-1.61 0-3.094.633-4.186 1.667A3.001 3.001 0 0 1 4.905 9H3.75a.75.75 0 0 0-.75.75v6.75Z" clip-rule="evenodd"></path></svg> <span class="nav-text">My Profile</span></button>
+            </div>
+            <div class="p-2 border-t mt-auto">
+                <button id="logout-btn" class="nav-button w-full flex items-center p-3 rounded-lg font-semibold text-red-600 hover:bg-red-50">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 mr-3 flex-shrink-0"><path fill-rule="evenodd" d="M7.5 3.75A1.5 1.5 0 0 0 6 5.25v13.5a1.5 1.5 0 0 0 1.5 1.5h6a1.5 1.5 0 0 0 1.5-1.5V15a.75.75 0 0 1 1.5 0v3.75a3 3 0 0 1-3 3h-6a3 3 0 0 1-3-3V5.25a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3V9A.75.75 0 0 1 15 9V5.25a1.5 1.5 0 0 0-1.5-1.5h-6Zm10.72 4.72a.75.75 0 0 1 1.06 0l3 3a.75.75 0 0 1 0 1.06l-3 3a.75.75 0 1 1-1.06-1.06l1.72-1.72H9a.75.75 0 0 1 0-1.5h10.94l-1.72-1.72a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"></path></svg>
+                    <span class="nav-text">Logout</span>
+                </button>
+            </div>
+        </nav>
+
+        <div class="flex-1 flex flex-col overflow-hidden">
+             <header class="flex justify-between items-center p-4 bg-white border-b border-gray-200 shadow-sm flex-shrink-0">
+                <div class="flex items-center gap-4">
+                    <h2 id="page-title" class="text-xl font-bold">Dashboard</h2>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div id="student-info" class="text-right"></div>
+                </div>
+            </header>
+            <main class="flex-1 p-4 md:p-8 overflow-y-auto">
+                <div id="app-content-container"></div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Mobile Bottom Navigation -->
+     <div id="bottom-nav" class="fixed bottom-0 left-0 right-0 h-16 bg-white shadow-lg hidden z-50">
+        <button data-tab="dashboard" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center text-xs"><svg class="w-6 h-6 mb-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M10.5 4.5a3 3 0 0 0-3 3v.75a.75.75 0 0 1-1.5 0v-.75a4.5 4.5 0 0 1 4.5-4.5h3a4.5 4.5 0 0 1 4.5 4.5v.75a.75.75 0 0 1-1.5 0v-.75a3 3 0 0 0-3-3h-3Z"></path><path fill-rule="evenodd" d="M2.25 12c0-3.573 2.642-6.535 6.07-7.122A.75.75 0 0 1 9 5.628v12.744a.75.75 0 0 1-1.192.594C4.354 18.2 2.25 15.34 2.25 12ZM15 5.628a.75.75 0 0 0-1.192-.594C17.646 5.7 21.75 8.66 21.75 12c0 3.573-2.642 6.535-6.07 7.122A.75.75 0 0 0 15 18.372V5.628Z" clip-rule="evenodd"></path></svg>Dashboard</button>
+        <button data-tab="homework" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center text-xs"><svg class="w-6 h-6 mb-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M11.25 4.533A9.708 9.708 0 0 0 6 3.75a9.708 9.708 0 0 0-5.25.783V18a9.708 9.708 0 0 0 5.25.783a9.708 9.708 0 0 0 5.25-.783V4.533Z"></path><path d="M12.75 3.75a9.708 9.708 0 0 1 5.25.783V18a9.708 9.708 0 0 1-5.25.783a9.708 9.708 0 0 1-5.25-.783V4.533c.359-.092.73-.162 1.114-.211A9.73 9.73 0 0 1 8.25 3.75a9.73 9.73 0 0 1 4.5 0Z"></path></svg>Homework</button>
+        <button data-tab="transport" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center text-xs"><svg class="w-6 h-6 mb-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M10.5 18.75a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5h-3Z"></path><path fill-rule="evenodd" d="M8.625.75A3.375 3.375 0 0 0 5.25 4.125v15.75a3.375 3.375 0 0 0 3.375 3.375h6.75a3.375 3.375 0 0 0 3.375-3.375V4.125A3.375 3.375 0 0 0 15.375.75h-6.75ZM7.5 4.125a1.125 1.125 0 0 1 1.125-1.125h6.75a1.125 1.125 0 0 1 1.125 1.125v15.75a1.125 1.125 0 0 1-1.125 1.125h-6.75a1.125 1.125 0 0 1-1.125-1.125V4.125Z" clip-rule="evenodd"></path></svg>Transport</button>
+        <button data-tab="liveclass" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center text-xs"><svg class="w-6 h-6 mb-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M4.5 4.5a3 3 0 0 0-3 3v9a3 3 0 0 0 3 3h15a3 3 0 0 0 3-3v-9a3 3 0 0 0-3-3h-15Zm-1.5 3a1.5 1.5 0 0 1 1.5-1.5h15a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5-1.5h-15a1.5 1.5 0 0 1-1.5-1.5v-9Z"></path><path d="M10.03 10.03a.75.75 0 0 1 0 1.06l-2.25 2.25a.75.75 0 0 1-1.06 0l-.75-.75a.75.75 0 1 1 1.06-1.06l.22.22 1.72-1.72a.75.75 0 0 1 1.06 0Zm6-2.25a.75.75 0 0 0-.75.75v4.5a.75.75 0 0 0 1.5 0v-4.5a.75.75 0 0 0-.75-.75Z"></path></svg>Live Class</button>
+        <button data-tab="my-profile" class="bottom-nav-btn flex-1 flex flex-col items-center justify-center text-xs"><svg class="w-6 h-6 mb-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 7.5a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5Z"></path><path fill-rule="evenodd" d="M1.5 4.875C1.5 3.839 2.34 3 3.375 3h17.25c1.035 0 1.875.84 1.875 1.875v14.25c0 1.035-.84 1.875-1.875 1.875H3.375A1.875 1.875 0 0 1 1.5 19.125V4.875ZM3 16.5c0 .207.168.375.375.375h17.25a.375.375 0 0 0 .375-.375V9.75A.75.75 0 0 0 20.25 9h-1.355a3 3 0 0 1-2.91-2.583A6 6 0 0 0 12 3.75c-1.61 0-3.094.633-4.186 1.667A3.001 3.001 0 0 1 4.905 9H3.75a.75.75 0 0 0-.75.75v6.75Z" clip-rule="evenodd"></path></svg>Profile</button>
+    </div>
+    <div id="toast" role="status" aria-live="polite"></div>
+
+    <!-- Modals -->
+    <div id="call-modal" class="modal"><div class="modal-content text-center"><h3 id="call-modal-title" class="text-2xl font-bold mb-4">Calling...</h3><button class="mt-4 w-full py-3 bg-red-600 text-white font-semibold rounded-lg" onclick="document.getElementById('call-modal').classList.remove('active')">End Call</button></div></div>
+    <div id="chat-modal" class="modal">
+        <div class="modal-content">
+            <div id="chat-header" class="flex justify-between items-center">
+                <span id="chat-header-title"></span>
+                <button type="button" onclick="document.getElementById('chat-modal').classList.remove('active')" class="p-2 rounded-full hover:bg-gray-100 -mr-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-gray-700">
+                        <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z"></path>
+                    </svg>
+                </button>
+            </div>
+            <div id="chat-messages"></div>
+            <form id="chat-form">
+                <input type="text" id="chat-input" class="form-input flex-grow" placeholder="Type a message..." required="">
+                <button type="submit" class="bg-green-600 text-white p-3 rounded-lg"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6"><path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z"></path></svg></button>
+            </form>
+        </div>
+    </div>
+
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyD7gB7FbMFtG1k1vJGVI3XVCyCUNeZIC7M",
+        databaseURL: "https://smart-school-e9f86-default-rtdb.asia-southeast1.firebasedatabase.app",
+    };
+
+    // --- APP STATE ---
+    let db;
+    let student = null;
+    let allStudents = [];
+    let allStaff = [];
+    let allHomework = [];
+    let allResults = [];
+    let allLiveClasses = [];
+    let allBuses = [];
+    let allBusTrips = [];
+    let allLeaves = [];
+    let activeDBListeners = [];
+    let currentChatListener = null;
+    let countdownIntervalId = null;
+    let currentEtaInfo = null;
+    let isCountdownPaused = false;
+    let pausedRemainingMs = 0;
+
+
+    const mainContent = document.getElementById('app-content-container');
+
+    // --- UTILITIES ---
+    function showToast(message) {
+        const t = document.getElementById('toast');
+        if(!t) return;
+        t.textContent = message; t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 3000);
+    }
+    
+    function logout() {
+        cleanupDBListeners();
+        sessionStorage.removeItem('loggedInUser');
+        student = null;
+        document.getElementById('app-container').classList.add('hidden');
+        document.getElementById('login-overlay').classList.remove('hidden');
+    }
+
+    function cleanupDBListeners() {
+        if (countdownIntervalId) {
+            clearInterval(countdownIntervalId);
+            countdownIntervalId = null;
+            currentEtaInfo = null;
+            isCountdownPaused = false;
+            pausedRemainingMs = 0;
+        }
+        activeDBListeners.forEach(l => l.ref.off(l.type, l.callback));
+        activeDBListeners = [];
+        if (currentChatListener) {
+            currentChatListener.ref.off('value', currentChatListener.callback);
+            currentChatListener = null;
+        }
+    }
+    function addDBListener(ref, type, callback) {
+        ref.on(type, callback);
+        activeDBListeners.push({ ref, type, callback });
+    }
+
+    function speak(text) {
+        if ('speechSynthesis' in window) {
+            speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            speechSynthesis.speak(utterance);
+        }
+    }
+
+    // --- RENDER FUNCTIONS ---
+    function renderDashboard() {
+        const myHomework = allHomework.filter(h => h.className === student.className && h.section === student.section);
+        const newHomeworkCount = myHomework.filter(h => new Date(h.date) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).length; // Homework from last 7 days
+        const upcomingClasses = allLiveClasses.filter(lc => lc.className === student.className && lc.section === student.section && lc.status !== 'ended').length;
+
+        mainContent.innerHTML = `
+            <div class="space-y-8">
+                <div>
+                    <h3 class="text-2xl font-bold">Welcome back, ${student.studentName}!</h3>
+                    <p class="text-gray-600 mt-1">Class: ${student.className}-${student.section}</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="card bg-yellow-50 border-yellow-200">
+                        <h3 class="font-semibold text-yellow-800">New Homework</h3>
+                        <p class="text-4xl font-extrabold text-yellow-900 mt-2">${newHomeworkCount}</p>
+                    </div>
+                    <div class="card bg-blue-50 border-blue-200">
+                        <h3 class="font-semibold text-blue-800">Upcoming Classes</h3>
+                        <p class="text-4xl font-extrabold text-blue-900 mt-2">${upcomingClasses}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderIdCard() {
+        mainContent.innerHTML = `
+            <div class="max-w-sm mx-auto bg-white rounded-2xl shadow-lg overflow-hidden">
+                <div class="bg-green-600 p-4 text-center text-white">
+                    <h2 class="text-xl font-bold">Navrose Smart School</h2>
+                    <p class="text-sm">Student Identity Card</p>
+                </div>
+                <div class="p-6 text-center">
+                    <div id="qrcode" class="flex justify-center p-4 bg-white border rounded-lg mb-4"></div>
+                    <h3 class="text-2xl font-bold">${student.studentName}</h3>
+                    <p class="text-gray-600">Admission No: ${student.admissionNumber}</p>
+                    <p class="text-gray-600">Class: ${student.className}-${student.section}</p>
+                    <p class="text-gray-600">Father's Name: ${student.fatherName}</p>
+                    <p class="text-gray-600">Mobile: ${student.mobile}</p>
+                </div>
+            </div>
+        `;
+        new QRCode(document.getElementById("qrcode"), { text: student.id, width: 128, height: 128 });
+    }
+    
+    function renderHomework() {
+        const myHomework = allHomework
+            .filter(h => h.className === student.className && h.section === student.section)
+            .sort((a,b) => new Date(b.dueDate) - new Date(a.dueDate));
+        
+        const homeworkList = myHomework.length > 0 ? myHomework.map(h => `
+            <div class="card">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h3 class="text-lg font-bold">${h.title}</h3>
+                        <p class="text-sm font-semibold text-gray-500">${h.subject}</p>
+                    </div>
+                    <p class="text-sm text-red-600 font-semibold">Due: ${h.dueDate}</p>
+                </div>
+                <p class="mt-4 text-gray-700">${h.description}</p>
+            </div>
+        `).join('') : '<p class="text-center text-gray-500 py-8">No homework assigned.</p>';
+        
+        mainContent.innerHTML = `<div class="space-y-4">${homeworkList}</div>`;
+    }
+
+    function renderTransport() {
+        if (!student.transportInfo || !student.transportInfo.busId) {
+            mainContent.innerHTML = `<div class="card text-center"><p class="text-gray-600">You are not currently assigned to a bus route. Please contact the transport manager.</p></div>`;
+            return;
+        }
+
+        mainContent.innerHTML = `
+            <div class="card">
+                <h3 class="text-xl font-bold mb-4">Live Bus Tracking</h3>
+                <div id="transport-status-container" class="space-y-4">
+                    <p class="text-center p-8 text-gray-500">Connecting to bus...</p>
+                </div>
+            </div>
+        `;
+
+        const busId = student.transportInfo.busId;
+        const bus = allBuses.find(b => b.id === busId);
+        
+        if (!bus) {
+            document.getElementById('transport-status-container').innerHTML = `<p class="text-center p-8 text-red-500">Error: Could not find details for your assigned bus.</p>`;
+            return;
+        }
+        const driverId = bus.assignedDriverId;
+        const driver = allStaff.find(s => s.id === driverId);
+        
+        let liveData = { bus, driver, tripId: null, location: null, boardingInfo: null, etaInfo: null, liveStatus: 'On Way' };
+        let innerListeners = [];
+
+        const renderCurrentStatus = () => {
+            renderTransportStatus(liveData);
+        };
+
+        const cleanupInnerListeners = () => {
+            innerListeners.forEach(l => l.ref.off(l.type, l.callback));
+            innerListeners = [];
+        };
+
+        addDBListener(db.ref(`buses/${busId}/activeTripId`), 'value', tripIdSnap => {
+            cleanupInnerListeners();
+            if (countdownIntervalId) clearInterval(countdownIntervalId);
+            
+            const activeTripId = tripIdSnap.val();
+            liveData.tripId = activeTripId;
+            liveData.location = null;
+            liveData.boardingInfo = null;
+            liveData.etaInfo = null;
+            liveData.liveStatus = 'On Way';
+
+            if (!activeTripId) {
+                renderCurrentStatus(); 
+                return;
+            }
+
+            const locationRef = db.ref(`busLocations/${busId}`);
+            const locationCallback = locationSnap => { liveData.location = locationSnap.val(); renderCurrentStatus(); };
+            locationRef.on('value', locationCallback);
+            innerListeners.push({ ref: locationRef, type: 'value', callback: locationCallback });
+            
+            const boardingRef = db.ref(`busTrips/${activeTripId}/boardedStudents/${student.id}`);
+            const boardingCallback = snapshot => { liveData.boardingInfo = snapshot.val(); renderCurrentStatus(); };
+            boardingRef.on('value', boardingCallback);
+            innerListeners.push({ ref: boardingRef, type: 'value', callback: boardingCallback });
+
+            const etaRef = db.ref(`busTrips/${activeTripId}/studentETAs/${student.id}`);
+            const etaCallback = snapshot => { liveData.etaInfo = snapshot.val(); renderCurrentStatus(); };
+            etaRef.on('value', etaCallback);
+            innerListeners.push({ ref: etaRef, type: 'value', callback: etaCallback });
+
+            const statusRef = db.ref(`busTrips/${activeTripId}/liveStatus`);
+            const statusCallback = snapshot => { liveData.liveStatus = snapshot.val() || 'On Way'; renderCurrentStatus(); };
+            statusRef.on('value', statusCallback);
+            innerListeners.push({ ref: statusRef, type: 'value', callback: statusCallback });
+
+
+            const announcementRef = db.ref(`busAnnouncements/${activeTripId}`);
+            const announcementCallback = snapshot => {
+                const announcement = snapshot.val();
+                if (announcement && announcement.message) {
+                    showToast(`Bus Announcement: ${announcement.message}`);
+                    if (announcement.voice && 'speechSynthesis' in window) {
+                        speak(announcement.message);
+                    }
+                }
+            };
+            announcementRef.limitToLast(1).on('child_added', announcementCallback);
+            innerListeners.push({ ref: announcementRef, type: 'child_added', callback: announcementCallback });
+        });
+    }
+
+    function renderTransportStatus({ bus, tripId, location, boardingInfo, driver, etaInfo, liveStatus }) {
+        const container = document.getElementById('transport-status-container');
+        if (!container) return;
+    
+        const boardedStatus = boardingInfo ? 
+            `<p class="text-2xl font-bold text-green-700">Boarded</p><p class="text-green-600">You are on the bus.</p>` :
+            `<p class="text-2xl font-bold text-yellow-700">Not Boarded</p><p class="text-yellow-600">Waiting for pickup.</p>`;
+    
+        const commsHTML = driver ? `<div class="mt-6 flex flex-col md:flex-row gap-4 justify-center">
+            <button onclick="openChatWithDriver('${driver.id}', '${driver.staffName}')" class="py-3 px-6 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700">Message Driver</button>
+            <button onclick="callDriver('${driver.id}', '${driver.staffName}')" class="py-3 px-6 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700">Call Driver</button>
+        </div>` : '';
+    
+        container.innerHTML = `
+            <p class="text-lg font-semibold">Bus: ${bus.busNumber}</p>
+            <p class="text-lg font-semibold">Your Stop: ${student.transportInfo.stopName}</p>
+            <div id="live-status-section" class="mt-4 p-4 bg-blue-50 border-blue-200 rounded-lg text-center">
+                 <p class="text-lg">Bus Status: <span id="live-bus-status" class="font-bold">${liveStatus}</span></p>
+            </div>
+            <div id="eta-section" class="mt-4"></div>
+            <div class="mt-4 p-4 bg-green-50 border-green-200 rounded-lg text-center">
+                ${boardedStatus}
+            </div>
+            ${commsHTML}
+        `;
+    
+        const etaContainer = document.getElementById('eta-section');
+    
+        if (etaInfo && (!currentEtaInfo || etaInfo.setAt !== currentEtaInfo.setAt)) {
+            currentEtaInfo = etaInfo;
+            if (countdownIntervalId) clearInterval(countdownIntervalId);
+            isCountdownPaused = false;
+    
+            const targetTime = etaInfo.setAt + (etaInfo.eta * 60 * 1000);
+            const initialTotalSeconds = etaInfo.eta * 60;
+            let notificationState = { firstWarning: false, finalWarning: false };
+    
+            etaContainer.innerHTML = `
+                <div id="countdown-display" class="p-4 rounded-lg text-white text-center transition-colors duration-500">
+                    <p class="text-sm uppercase tracking-wider">Bus Arriving In</p>
+                    <p id="countdown-timer" class="text-5xl font-extrabold tracking-tight">--:--</p>
+                </div>
+            `;
+            
+            const timerEl = document.getElementById('countdown-timer');
+            const displayEl = document.getElementById('countdown-display');
+    
+            const updateCountdown = () => {
+                if (!timerEl || !displayEl || isCountdownPaused) {
+                    if(isCountdownPaused) {
+                        timerEl.innerHTML = timerEl.textContent.split(' ')[0] + ' ⏸️';
+                    }
+                    clearInterval(countdownIntervalId);
+                    return;
+                }
+                const remainingMs = targetTime - Date.now();
+                if (remainingMs <= 0) {
+                    clearInterval(countdownIntervalId);
+                    countdownIntervalId = null;
+                    currentEtaInfo = null;
+                    displayEl.innerHTML = `<p class="text-2xl font-bold">Bus should have arrived!</p>`;
+                    displayEl.classList.remove('bg-red-500', 'bg-yellow-500');
+                    displayEl.classList.add('bg-green-500');
+                    return;
+                }
+    
+                const remainingSeconds = Math.round(remainingMs / 1000);
+                const minutes = Math.floor(remainingSeconds / 60);
+                const seconds = remainingSeconds % 60;
+                timerEl.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                
+                const timeRatio = remainingSeconds / initialTotalSeconds;
+                displayEl.classList.remove('bg-red-500', 'bg-yellow-500', 'bg-green-500');
+                if (timeRatio > 2/3) displayEl.classList.add('bg-red-500');
+                else if (timeRatio > 1/3) displayEl.classList.add('bg-yellow-500');
+                else displayEl.classList.add('bg-green-500');
+    
+                const firstWarningThreshold = initialTotalSeconds * (2/3);
+                const finalWarningThreshold = 120;
+    
+                if (remainingSeconds <= finalWarningThreshold && !notificationState.finalWarning) {
+                    speak(`${student.studentName}, the bus is about to arrive, please come now.`);
+                    notificationState.finalWarning = true;
+                } else if (remainingSeconds <= firstWarningThreshold && !notificationState.firstWarning) {
+                    speak(`${student.studentName}, hurry up, the bus is coming to pick you up.`);
+                    notificationState.firstWarning = true;
+                }
+            };
+    
+            if (liveStatus === 'On Way') {
+                countdownIntervalId = setInterval(updateCountdown, 1000);
+                updateCountdown();
+            } else {
+                 updateCountdown(); // run once to display time
+                 if (timerEl) timerEl.innerHTML += ' ⏸️';
+            }
+    
+        } else if (!etaInfo && !currentEtaInfo) {
+            if (countdownIntervalId) clearInterval(countdownIntervalId);
+            
+            let liveStatusHTML = `<p class="text-2xl font-bold text-gray-700">Connecting...</p>`;
+            if (tripId) {
+                 liveStatusHTML = `<p class="text-2xl font-bold text-blue-700">Bus is on the way!</p>
+                    ${location ? `<p class="text-gray-500">Last updated: ${new Date(location.timestamp).toLocaleTimeString()}</p>` : ''}`;
+            } else {
+                liveStatusHTML = `<p class="text-2xl font-bold text-gray-700">Trip Not Active</p>`;
+            }
+            etaContainer.innerHTML = `<div class="p-4 bg-gray-100 rounded-lg text-center">${liveStatusHTML}</div>`;
+        }
+        
+        // Handle pause and resume based on liveStatus
+        if (liveStatus === 'Stopped in Traffic' && countdownIntervalId && !isCountdownPaused) {
+            const targetTime = currentEtaInfo.setAt + (currentEtaInfo.eta * 60 * 1000);
+            pausedRemainingMs = targetTime - Date.now();
+            clearInterval(countdownIntervalId);
+            countdownIntervalId = null;
+            isCountdownPaused = true;
+            const timerEl = document.getElementById('countdown-timer');
+            if (timerEl) timerEl.innerHTML += ' ⏸️';
+        } else if (liveStatus === 'On Way' && isCountdownPaused) {
+            isCountdownPaused = false;
+            if (currentEtaInfo) {
+                // To restart, we trick the logic into thinking it's a new ETA
+                const newEtaInfo = { ...currentEtaInfo, setAt: Date.now() };
+                const remainingMinutes = Math.max(0, pausedRemainingMs / (60 * 1000));
+                newEtaInfo.eta = remainingMinutes;
+                currentEtaInfo = null; // Force re-initialization
+                renderTransportStatus({bus, tripId, location, boardingInfo, driver, etaInfo: newEtaInfo, liveStatus});
+            }
+        }
+    }
+
+    function renderResults() {
+        const myResults = allResults.filter(r => r.className === student.className && r.section === student.section);
+        const resultsByExam = myResults.reduce((acc, curr) => {
+            (acc[curr.examType] = acc[curr.examType] || []).push(curr);
+            return acc;
+        }, {});
+
+        if (Object.keys(resultsByExam).length === 0) {
+            mainContent.innerHTML = `<div class="card text-center"><p>Your results have not been published yet.</p></div>`;
+            return;
+        }
+
+        mainContent.innerHTML = Object.entries(resultsByExam).map(([examType, results]) => `
+            <div class="card mb-6">
+                <h3 class="text-xl font-bold mb-4">${examType}</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead class="bg-gray-50"><tr class="border-b"><th class="p-3">Subject</th><th class="p-3">Marks Obtained</th></tr></thead>
+                        <tbody>
+                            ${results.map(r => `
+                                <tr class="border-b">
+                                    <td class="p-3 font-semibold">${r.subject}</td>
+                                    <td class="p-3">${r.results[student.id] || 'N/A'}</td>
+                                </tr>`).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function renderLeaveApplication() { 
+        const myLeaves = allLeaves.filter(l => l.applicantId === student.id).sort((a,b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+        const getStatusBadge = (status) => {
+            if (status === 'Approved') return `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">${status}</span>`;
+            if (status === 'Rejected') return `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">${status}</span>`;
+            return `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">${status}</span>`;
+        };
+
+        mainContent.innerHTML = `
+            <div class="card">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-bold">My Leave Applications</h3>
+                    <button id="apply-leave-btn" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg">Apply for Leave</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead><tr class="border-b"><th class="p-3">Dates</th><th class="p-3">Reason</th><th class="p-3">Status</th></tr></thead>
+                        <tbody>
+                            ${myLeaves.length > 0 ? myLeaves.map(leave => `
+                            <tr class="border-b">
+                                <td class="p-3">${leave.startDate} to ${leave.endDate}</td>
+                                <td class="p-3">${leave.reason}</td>
+                                <td class="p-3">${getStatusBadge(leave.status)}</td>
+                            </tr>`).join('') : `<tr><td colspan="3" class="text-center p-8 text-gray-500">No leave applications found.</td></tr>`}
+                        </tbody>
+                    </table>
+                </div>
+            </div>`;
+        
+        document.getElementById('apply-leave-btn').addEventListener('click', () => {
+             const modal = document.createElement('div');
+            modal.className = 'modal active';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <h3 class="text-xl font-bold mb-4">New Leave Application</h3>
+                    <form id="leave-form" class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><label>Start Date</label><input type="date" id="start-date" class="form-input mt-1" required></div>
+                            <div><label>End Date</label><input type="date" id="end-date" class="form-input mt-1" required></div>
+                        </div>
+                        <div><label>Reason</label><textarea id="reason" class="form-textarea mt-1" rows="4" required></textarea></div>
+                        <div class="flex justify-end gap-3 pt-2">
+                            <button type="button" class="px-4 py-2 bg-gray-200 text-gray-800 font-semibold rounded-lg" onclick="this.closest('.modal').remove()">Cancel</button>
+                            <button type="submit" class="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg">Submit</button>
+                        </div>
+                    </form>
+                </div>`;
+            document.body.appendChild(modal);
+            modal.querySelector('#leave-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const leaveId = Date.now().toString();
+                const leaveData = {
+                    id: leaveId, applicantId: student.id, applicantName: student.studentName,
+                    applicantType: 'student',
+                    startDate: document.getElementById('start-date').value,
+                    endDate: document.getElementById('end-date').value,
+                    reason: document.getElementById('reason').value,
+                    status: 'Pending', submittedAt: new Date().toISOString()
+                };
+                await db.ref('leaves/' + leaveId).set(leaveData);
+                allLeaves.push(leaveData);
+                showToast("Leave application submitted.");
+                renderLeaveApplication();
+                modal.remove();
+            });
+        });
+    }
+
+    function renderMyProfile() { 
+        mainContent.innerHTML = `
+        <div class="card max-w-lg mx-auto">
+            <h3 class="text-2xl font-bold text-center mb-6">${student.studentName}</h3>
+            <div class="space-y-3 text-lg">
+                <div class="flex justify-between"><span class="font-semibold text-gray-600">Admission No:</span><span>${student.admissionNumber}</span></div>
+                <div class="flex justify-between"><span class="font-semibold text-gray-600">Class:</span><span>${student.className}-${student.section}</span></div>
+                <div class="flex justify-between"><span class="font-semibold text-gray-600">Father's Name:</span><span>${student.fatherName}</span></div>
+                <div class="flex justify-between"><span class="font-semibold text-gray-600">Mobile:</span><span>${student.mobile}</span></div>
+                <div class="pt-2"><p class="font-semibold text-gray-600">Address:</p><p>${student.address}</p></div>
+            </div>
+        </div>`;
+    }
+
+    function renderLiveClass() { 
+        const myLiveClasses = allLiveClasses
+            .filter(lc => lc.className === student.className && lc.section === student.section)
+            .sort((a,b) => new Date(b.date + ' ' + b.startTime) - new Date(a.date + ' ' + a.startTime));
+        
+        const getStatusBadge = (status) => {
+            if (status === 'live') return `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Live</span>`;
+            if (status === 'ended') return `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Ended</span>`;
+            return `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Scheduled</span>`;
+        };
+
+        const classList = myLiveClasses.length > 0 ? myLiveClasses.map(lc => `
+            <div class="card">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h3 class="text-lg font-bold">${lc.topic}</h3>
+                        <p class="text-sm font-semibold text-gray-500">${lc.subject} - by ${lc.teacherName}</p>
+                        <p class="text-sm text-gray-500">${lc.date} at ${lc.startTime}</p>
+                    </div>
+                    <div>${getStatusBadge(lc.status)}</div>
+                </div>
+            </div>
+        `).join('') : '<p class="text-center text-gray-500 py-8">No live classes scheduled for you.</p>';
+
+        mainContent.innerHTML = `<div class="space-y-4">${classList}</div>`;
+    }
+
+    // --- CHAT & CALL ---
+    function callDriver(driverId, driverName) {
+        const modal = document.getElementById('call-modal');
+        document.getElementById('call-modal-title').textContent = `Calling ${driverName}...`;
+        modal.classList.add('active');
+    }
+
+    const chatCallback = (snapshot) => {
+        const messagesContainer = document.getElementById('chat-messages');
+        if (!messagesContainer) return;
+        const messages = Object.values(snapshot.val() || {}).sort((a, b) => a.timestamp - b.timestamp);
+        messagesContainer.innerHTML = messages.map(msg => `<div class="chat-bubble ${msg.senderId === student.id ? 'sent' : 'received'}">${msg.text}</div>`).join('');
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    };
+    
+    function openChatWithDriver(driverId, driverName) {
+        const modal = document.getElementById('chat-modal');
+        document.getElementById('chat-header-title').textContent = `Chat with Driver (${driverName})`;
+        document.getElementById('chat-messages').innerHTML = '';
+        modal.classList.add('active');
+        
+        const chatId = `${driverId}_${student.id}`;
+        const chatRef = db.ref(`chats/${chatId}`);
+        if (currentChatListener) currentChatListener.ref.off('value', currentChatListener.callback);
+        
+        chatRef.on('value', chatCallback);
+        currentChatListener = { ref: chatRef, callback: chatCallback };
+
+        const chatForm = document.getElementById('chat-form');
+        const newForm = chatForm.cloneNode(true);
+        chatForm.parentNode.replaceChild(newForm, chatForm);
+
+        newForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            const message = { senderId: student.id, receiverId: driverId, text, timestamp: Date.now() };
+            await chatRef.push(message);
+            input.value = '';
+        });
+    }
+
+    // --- APP FLOW & NAVIGATION ---
+    const tabs = {
+        dashboard: { render: renderDashboard, title: "Dashboard" },
+        'id-card': { render: renderIdCard, title: "My ID Card" },
+        homework: { render: renderHomework, title: "Homework" },
+        liveclass: { render: renderLiveClass, title: "Live Class" },
+        transport: { render: renderTransport, title: "Transport" },
+        results: { render: renderResults, title: "Results" },
+        'leave-application': { render: renderLeaveApplication, title: "Leave Application" },
+        'my-profile': { render: renderMyProfile, title: "My Profile" },
+    };
+
+    function setActiveTab(tabName) {
+        cleanupDBListeners();
+        document.getElementById('page-title').textContent = tabs[tabName]?.title || "Student Portal";
+        
+        document.querySelectorAll('.sidebar .nav-button').forEach(b => b.classList.toggle('active', b.dataset.tab === tabName));
+        document.querySelectorAll('#bottom-nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === tabName));
+
+        const renderFunction = tabs[tabName]?.render;
+        if(renderFunction) {
+            renderFunction();
+        } else {
+            mainContent.innerHTML = `<div class="card text-center">This feature is under development.</div>`;
+        }
+    }
+
+    async function runApp(loggedInUser) {
+        document.getElementById('login-overlay').classList.add('hidden');
+        document.getElementById('app-container').classList.remove('hidden');
+        mainContent.innerHTML = `<div class="text-center p-8">Loading your portal...</div>`;
+
+        try {
+            const [studentsSnap, homeworkSnap, resultsSnap, liveClassesSnap, busesSnap, busTripsSnap, leavesSnap, staffSnap] = await Promise.all([
+                db.ref('students').once('value'),
+                db.ref('homework').once('value'),
+                db.ref('results').once('value'),
+                db.ref('liveClasses').once('value'),
+                db.ref('buses').once('value'),
+                db.ref('busTrips').once('value'),
+                db.ref('leaves').once('value'),
+                db.ref('staff').once('value'),
+            ]);
+            
+            allStudents = Object.values(studentsSnap.val() || {});
+            allStaff = Object.values(staffSnap.val() || {});
+            allHomework = Object.values(homeworkSnap.val() || {});
+            allResults = Object.values(resultsSnap.val() || {});
+            allLiveClasses = Object.values(liveClassesSnap.val() || {});
+            allBuses = Object.values(busesSnap.val() || {});
+            allBusTrips = Object.values(busTripsSnap.val() || {});
+            allLeaves = Object.values(leavesSnap.val() || {});
+
+            student = allStudents.find(s => s && s.id === loggedInUser.id);
+            if (!student) {
+                logout();
+                throw new Error('Student profile not found.');
+            }
+            
+            document.getElementById('student-info').innerHTML = `<p class="font-semibold">${student.studentName}</p><p class="text-sm text-gray-500">${student.className}-${student.section}</p>`;
+            
+            document.querySelectorAll('.nav-button, .bottom-nav-btn').forEach(btn => {
+                btn.addEventListener('click', () => setActiveTab(btn.dataset.tab));
+            });
+
+            setActiveTab('dashboard');
+
+        } catch (error) {
+            console.error("Failed to load student data:", error);
+            mainContent.innerHTML = `<div class="card text-red-700 bg-red-100"><h3 class="font-bold">Error</h3><p>Could not load your data. Please log out and try again.</p></div>`;
+        }
+    }
+    
+    // --- INITIALIZATION ---
+    document.addEventListener('DOMContentLoaded', () => {
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        db = firebase.database();
+
+        const form = document.getElementById('student-login-form');
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const admissionNo = document.getElementById('student-admission-no').value;
+            const mobile = document.getElementById('student-mobile').value;
+            const button = form.querySelector('button[type="submit"]');
+            button.disabled = true; button.textContent = 'Verifying...';
+            
+            try {
+                const snapshot = await db.ref('students').orderByChild('admissionNumber').equalTo(admissionNo).once('value');
+                if (snapshot.exists()) {
+                    const studentData = snapshot.val();
+                    const foundStudent = Object.values(studentData).find(s => s.mobile === mobile);
+                    
+                    if (foundStudent) {
+                        const user = { role: 'student', id: foundStudent.id };
+                        sessionStorage.setItem('loggedInUser', JSON.stringify(user));
+                        runApp(user);
+                    } else {
+                        showToast('Mobile number does not match admission number.');
+                    }
+                } else {
+                    showToast('Admission number not found.');
+                }
+            } catch (err) {
+                showToast('Login failed. Check your connection.');
+                console.error(err);
+            } finally {
+                button.disabled = false; button.textContent = 'Login';
+            }
+        });
+        
+        document.getElementById('logout-btn').addEventListener('click', logout);
+
+        let loggedInUser = null;
+        try {
+            const userData = sessionStorage.getItem('loggedInUser');
+            if (userData) loggedInUser = JSON.parse(userData);
+        } catch (e) {
+            sessionStorage.removeItem('loggedInUser');
+        }
+        
+        if (loggedInUser && loggedInUser.role === 'student') {
+            runApp(loggedInUser);
+        }
+    });
+
+</script>
+
+
+<script src="./script.js"></script></body></html>
