@@ -152,7 +152,23 @@
     <div id="toast" role="status" aria-live="polite"></div>
 
     <!-- Modals -->
-    <div id="call-modal" class="modal"><div class="modal-content text-center"><h3 id="call-modal-title" class="text-2xl font-bold mb-4">Calling...</h3><button class="mt-4 w-full py-3 bg-red-600 text-white font-semibold rounded-lg" onclick="document.getElementById('call-modal').classList.remove('active')">End Call</button></div></div>
+    <div id="call-modal" class="modal">
+        <div class="modal-content text-center bg-gray-800 text-white p-8 rounded-2xl">
+            <div class="relative mx-auto mb-4 h-32 w-32">
+                <div class="absolute inset-0 rounded-full bg-gray-600 animate-ping opacity-50"></div>
+                <div class="absolute inset-2 rounded-full bg-gray-500 animate-ping opacity-50 delay-500"></div>
+                <div class="relative h-32 w-32 rounded-full bg-gray-700 flex items-center justify-center border-4 border-gray-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16" viewBox="0 0 24 24" fill="currentColor"><path d="M10.5 18.75a.75.75 0 0 0 0 1.5h3a.75.75 0 0 0 0-1.5h-3Z"></path><path fill-rule="evenodd" d="M8.625.75A3.375 3.375 0 0 0 5.25 4.125v15.75a3.375 3.375 0 0 0 3.375 3.375h6.75a3.375 3.375 0 0 0 3.375-3.375V4.125A3.375 3.375 0 0 0 15.375.75h-6.75ZM7.5 4.125a1.125 1.125 0 0 1 1.125-1.125h6.75a1.125 1.125 0 0 1 1.125 1.125v15.75a1.125 1.125 0 0 1-1.125 1.125h-6.75a1.125 1.125 0 0 1-1.125-1.125V4.125Z" clip-rule="evenodd"></path></svg>
+                </div>
+            </div>
+            <p class="text-gray-300 text-lg">Ringing</p>
+            <h3 id="call-modal-title" class="text-3xl font-bold mt-1 mb-8">...</h3>
+            <button class="w-20 h-20 flex items-center justify-center mx-auto bg-red-600 text-white font-semibold rounded-full hover:bg-red-700 focus:outline-none focus:ring-4 focus:ring-red-400" onclick="endCall()">
+                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-10 h-10"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"></path></svg>
+            </button>
+        </div>
+    </div>
+
     <div id="chat-modal" class="modal">
         <div class="modal-content">
             <div id="chat-header" class="flex justify-between items-center">
@@ -170,6 +186,7 @@
             </form>
         </div>
     </div>
+    <audio id="call-sound" src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg" preload="auto" loop=""></audio>
 
 
 <script>
@@ -335,7 +352,7 @@
         const driverId = bus.assignedDriverId;
         const driver = allStaff.find(s => s.id === driverId);
         
-        let liveData = { bus, driver, tripId: null, location: null, boardingInfo: null, etaInfo: null, liveStatus: 'On Way' };
+        let liveData = { bus, driver, tripId: null, location: null, boardingInfo: null, etaInfo: null, liveStatus: 'On Way', tripType: null };
         let innerListeners = [];
 
         const renderCurrentStatus = () => {
@@ -357,11 +374,17 @@
             liveData.boardingInfo = null;
             liveData.etaInfo = null;
             liveData.liveStatus = 'On Way';
+            liveData.tripType = null;
 
             if (!activeTripId) {
                 renderCurrentStatus(); 
                 return;
             }
+
+            const tripTypeRef = db.ref(`busTrips/${activeTripId}/tripType`);
+            const tripTypeCallback = snapshot => { liveData.tripType = snapshot.val(); renderCurrentStatus(); };
+            tripTypeRef.on('value', tripTypeCallback);
+            innerListeners.push({ ref: tripTypeRef, type: 'value', callback: tripTypeCallback });
 
             const locationRef = db.ref(`busLocations/${busId}`);
             const locationCallback = locationSnap => { liveData.location = locationSnap.val(); renderCurrentStatus(); };
@@ -399,35 +422,47 @@
         });
     }
 
-    function renderTransportStatus({ bus, tripId, location, boardingInfo, driver, etaInfo, liveStatus }) {
+    function renderTransportStatus({ bus, tripId, location, boardingInfo, driver, etaInfo, liveStatus, tripType }) {
         const container = document.getElementById('transport-status-container');
         if (!container) return;
-    
-        const boardedStatus = boardingInfo ? 
-            `<p class="text-2xl font-bold text-green-700">Boarded</p><p class="text-green-600">You are on the bus.</p>` :
-            `<p class="text-2xl font-bold text-yellow-700">Not Boarded</p><p class="text-yellow-600">Waiting for pickup.</p>`;
     
         const commsHTML = driver ? `<div class="mt-6 flex flex-col md:flex-row gap-4 justify-center">
             <button onclick="openChatWithDriver('${driver.id}', '${driver.staffName}')" class="py-3 px-6 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700">Message Driver</button>
             <button onclick="callDriver('${driver.id}', '${driver.staffName}')" class="py-3 px-6 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700">Call Driver</button>
         </div>` : '';
     
+        const tripTypeText = tripType === 'pickup' ? 'Morning Trip (to School)' : (tripType === 'drop' ? 'Afternoon Trip (to Home)' : 'Trip Active');
+
         container.innerHTML = `
             <p class="text-lg font-semibold">Bus: ${bus.busNumber}</p>
             <p class="text-lg font-semibold">Your Stop: ${student.transportInfo.stopName}</p>
             <div id="live-status-section" class="mt-4 p-4 bg-blue-50 border-blue-200 rounded-lg text-center">
+                 <p class="text-lg">Trip Type: <span class="font-bold">${tripTypeText}</span></p>
                  <p class="text-lg">Bus Status: <span id="live-bus-status" class="font-bold">${liveStatus}</span></p>
             </div>
             <div id="eta-section" class="mt-4"></div>
-            <div class="mt-4 p-4 bg-green-50 border-green-200 rounded-lg text-center">
-                ${boardedStatus}
-            </div>
+            <div id="boarding-section" class="mt-4"></div>
             ${commsHTML}
         `;
+
+        const boardedStatus = boardingInfo ? 
+            `<p class="text-2xl font-bold text-green-700">Boarded</p><p class="text-green-600">You are on the bus.</p>` :
+            `<p class="text-2xl font-bold text-yellow-700">Not Boarded</p><p class="text-yellow-600">Waiting for bus.</p>`;
+        document.getElementById('boarding-section').innerHTML = `<div class="p-4 bg-green-50 border-green-200 rounded-lg text-center">${boardedStatus}</div>`;
     
         const etaContainer = document.getElementById('eta-section');
-    
-        if (etaInfo && (!currentEtaInfo || etaInfo.setAt !== currentEtaInfo.setAt)) {
+        let showCountdown = false;
+
+        // Logic to show countdown:
+        // 1. For 'drop' trip, student must be ON BOARD.
+        // 2. For 'pickup' trip, student must NOT be on board yet.
+        if (tripType === 'drop' && boardingInfo && etaInfo) {
+            showCountdown = true;
+        } else if (tripType === 'pickup' && !boardingInfo && etaInfo) {
+            showCountdown = true;
+        }
+        
+        if (showCountdown && (!currentEtaInfo || etaInfo.setAt !== currentEtaInfo.setAt)) {
             currentEtaInfo = etaInfo;
             if (countdownIntervalId) clearInterval(countdownIntervalId);
             isCountdownPaused = false;
@@ -436,9 +471,11 @@
             const initialTotalSeconds = etaInfo.eta * 60;
             let notificationState = { firstWarning: false, finalWarning: false };
     
+            const etaTitle = tripType === 'drop' ? 'Bus Arriving Home In' : 'Bus Arriving for Pickup In';
+
             etaContainer.innerHTML = `
                 <div id="countdown-display" class="p-4 rounded-lg text-white text-center transition-colors duration-500">
-                    <p class="text-sm uppercase tracking-wider">Bus Arriving In</p>
+                    <p class="text-sm uppercase tracking-wider">${etaTitle}</p>
                     <p id="countdown-timer" class="text-5xl font-extrabold tracking-tight">--:--</p>
                 </div>
             `;
@@ -480,10 +517,10 @@
                 const finalWarningThreshold = 120;
     
                 if (remainingSeconds <= finalWarningThreshold && !notificationState.finalWarning) {
-                    speak(`${student.studentName}, the bus is about to arrive, please come now.`);
+                    speak(`${student.studentName}, the bus is about to arrive, please be ready.`);
                     notificationState.finalWarning = true;
                 } else if (remainingSeconds <= firstWarningThreshold && !notificationState.firstWarning) {
-                    speak(`${student.studentName}, hurry up, the bus is coming to pick you up.`);
+                    speak(`${student.studentName}, hurry up, the bus is approaching your stop.`);
                     notificationState.firstWarning = true;
                 }
             };
@@ -495,18 +532,25 @@
                  updateCountdown(); // run once to display time
                  if (timerEl) timerEl.innerHTML += ' ⏸️';
             }
-    
-        } else if (!etaInfo && !currentEtaInfo) {
+        } else if (!showCountdown) {
             if (countdownIntervalId) clearInterval(countdownIntervalId);
-            
-            let liveStatusHTML = `<p class="text-2xl font-bold text-gray-700">Connecting...</p>`;
-            if (tripId) {
-                 liveStatusHTML = `<p class="text-2xl font-bold text-blue-700">Bus is on the way!</p>
-                    ${location ? `<p class="text-gray-500">Last updated: ${new Date(location.timestamp).toLocaleTimeString()}</p>` : ''}`;
+            currentEtaInfo = null;
+
+            let statusHTML = '';
+             if (!tripId) {
+                statusHTML = `<p class="text-2xl font-bold text-gray-700">Trip Not Active</p>`;
+            } else if (tripType === 'pickup') {
+                statusHTML = boardingInfo
+                    ? `<p class="text-2xl font-bold text-green-700">On the way to School</p>`
+                    : `<p class="text-2xl font-bold text-blue-700">Bus is on the way for pickup!</p>`;
+            } else if (tripType === 'drop') {
+                statusHTML = boardingInfo
+                    ? `<p class="text-2xl font-bold text-blue-700">On the way Home</p><p class="text-gray-500">Waiting for driver to set ETA.</p>`
+                    : `<p class="text-2xl font-bold text-gray-700">Waiting at school for bus.</p>`;
             } else {
-                liveStatusHTML = `<p class="text-2xl font-bold text-gray-700">Trip Not Active</p>`;
+                statusHTML = `<p class="text-2xl font-bold text-blue-700">Bus is on the way!</p>${location ? `<p class="text-gray-500">Last updated: ${new Date(location.timestamp).toLocaleTimeString()}</p>` : ''}`;
             }
-            etaContainer.innerHTML = `<div class="p-4 bg-gray-100 rounded-lg text-center">${liveStatusHTML}</div>`;
+            etaContainer.innerHTML = `<div class="p-4 bg-gray-100 rounded-lg text-center">${statusHTML}</div>`;
         }
         
         // Handle pause and resume based on liveStatus
@@ -526,7 +570,7 @@
                 const remainingMinutes = Math.max(0, pausedRemainingMs / (60 * 1000));
                 newEtaInfo.eta = remainingMinutes;
                 currentEtaInfo = null; // Force re-initialization
-                renderTransportStatus({bus, tripId, location, boardingInfo, driver, etaInfo: newEtaInfo, liveStatus});
+                renderTransportStatus({bus, tripId, location, boardingInfo, driver, etaInfo: newEtaInfo, liveStatus, tripType});
             }
         }
     }
@@ -672,9 +716,19 @@
     }
 
     // --- CHAT & CALL ---
+    function endCall() {
+        const modal = document.getElementById('call-modal');
+        const sound = document.getElementById('call-sound');
+        sound.pause();
+        sound.currentTime = 0;
+        modal.classList.remove('active');
+    }
+
     function callDriver(driverId, driverName) {
         const modal = document.getElementById('call-modal');
-        document.getElementById('call-modal-title').textContent = `Calling ${driverName}...`;
+        const sound = document.getElementById('call-sound');
+        document.getElementById('call-modal-title').textContent = `${driverName}`;
+        sound.play().catch(e => console.error("Audio play failed:", e));
         modal.classList.add('active');
     }
 
@@ -841,6 +895,5 @@
     });
 
 </script>
-
 
 <script src="./script.js"></script></body></html>
